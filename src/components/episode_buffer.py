@@ -100,9 +100,10 @@ class EpisodeBatch:
                 raise KeyError("{} not found in transition or episode data".format(k))
 
             dtype = self.scheme[k].get("dtype", th.float32)
-            if type(v) == list:
+            if isinstance(v, (list, np.ndarray)):
                 v = th.tensor(np.array(v), dtype=dtype, device=self.device)
             self._check_safe_view(v, target[k][_slices])
+
             target[k][_slices] = v.view_as(target[k][_slices])
 
             if k in self.preprocess:
@@ -119,7 +120,7 @@ class EpisodeBatch:
                 if s != 1:
                     raise ValueError("Unsafe reshape of {} to {}".format(v.shape, dest.shape))
             else:
-                idx -= 1
+                idx = max(0, idx-1)
 
     def __getitem__(self, item):
         if isinstance(item, str):

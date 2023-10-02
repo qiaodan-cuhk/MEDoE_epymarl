@@ -1,0 +1,57 @@
+exclude: null
+grid-search:
+
+  "--config":
+    - "qmix_ns"
+
+  lr:
+    - 0.0001
+    - 0.0003
+    - 0.001
+    - 0.003
+
+  standardise_rewards:
+    - True
+
+  use_rnn:
+    - False
+
+  target_update_interval_or_tau:
+    - 0.01
+    - 200
+
+  gamma:
+    - 0.99
+    - 0.999
+
+  hidden_dim:
+    - 256
+
+  evaluation_epsilon:
+    - 0.0
+
+  epsilon_anneal_time:
+    - 1_400_000
+    - 14_000_000
+
+  batch_size_run:
+    - 256
+
+  t_max:
+    - 140_000_000
+  test_nepisode:
+    - 100
+  test_interval:
+    - 1_400_000
+  log_interval:
+    - 1_400_000
+  save_model_interval:
+    - 14_000_000
+  save_model:
+    - false
+    
+grid-search-groups:
+  env0:
+    - "--env-config": "gymma_vec"
+    - env_args.key: vmas.gym:VMASFootball-2-v0
+    - env_args.time_limit: 1024

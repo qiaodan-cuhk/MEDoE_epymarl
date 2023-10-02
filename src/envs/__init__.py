@@ -8,6 +8,7 @@ from gym import ObservationWrapper, spaces
 from gym.envs import registry as gym_registry
 from gym.spaces import flatdim
 import numpy as np
+import torch as th
 from gym.wrappers import TimeLimit as GymTimeLimit
 
 def env_fn(env, **kwargs) -> MultiAgentEnv:
@@ -187,5 +188,89 @@ class _GymmaWrapper(MultiAgentEnv):
     def get_stats(self):
         return {}
 
+class _GymmaVecWrapper(MultiAgentEnv):
+    def __init__(self, key, time_limit, pretrained_wrapper, seed, **kwargs):
+        self.original_env = gym.make(f"{key}", **kwargs)
+        self._env = self.original_env
+        self.episode_limit = time_limit
+        #self._env = TimeLimit(self.original_env, max_episode_steps=time_limit)
+
+        if pretrained_wrapper:
+            self._env = getattr(pretrained, pretrained_wrapper)(self._env)
+
+        self.n_agents = self._env.n_agents
+        self._obs = None
+        self._info = None
+
+        self.longest_action_space = max(self._env.action_space, key=lambda x: x.n)
+        self.longest_observation_space = max(
+            self._env.observation_space, key=lambda x: x.shape
+        )
+
+        self._seed = seed
+        self._env.seed(self._seed)
+
+    def step(self, actions):
+        """ Returns reward, terminated, info """
+        self._obs, reward, term, self._info = self._env.step(actions.swapdims(0,1).unsqueeze(-1))
+        if type(reward) is list:
+            reward = sum(reward)
+        return reward, term, {}
+
+    def get_obs(self):
+        """ Returns all agent observations in a list """
+        return th.stack(self._obs, dim=1)
+
+    def get_obs_agent(self, agent_id):
+        """ Returns observation for agent_id """
+        raise self._obs[agent_id]
+
+    def get_obs_size(self):
+        """ Returns the shape of the observation """
+        return flatdim(self.longest_observation_space)
+
+    def get_state(self):
+        return th.cat(self._obs, dim=1)
+
+    def get_state_size(self):
+        """ Returns the shape of the state"""
+        if hasattr(self.original_env, 'state_size'):
+            return self.original_env.state_size
+        return self.n_agents * flatdim(self.longest_observation_space)
+
+    def get_avail_actions(self):
+        return np.ones((self._env.num_envs, self.n_agents, flatdim(self._env.action_space[0])))
+
+    def get_avail_agent_actions(self, agent_id):
+        """ Returns the available actions for agent_id """
+        return np.ones((self._env.num_envs, flatdim(self._env.action_space[agent_id])))
+
+    def get_total_actions(self):
+        """ Returns the total number of actions an agent could ever take """
+        # TODO: This is only suitable for a discrete 1 dimensional action space for each agent
+        return flatdim(self.longest_action_space)
+
+    def reset(self):
+        """ Returns initial observations and states"""
+        self._obs = self._env.reset()
+        obs, state = self.get_obs(), self.get_state()
+        return self.get_obs(), self.get_state()
+
+    def render(self):
+        self._env.render()
+
+    def close(self):
+        self._env.close()
+
+    def seed(self):
+        return self._env.seed
+
+    def save_replay(self):
+        pass
+
+    def get_stats(self):
+        return {}
+
 
 REGISTRY["gymma"] = partial(env_fn, env=_GymmaWrapper)
+REGISTRY["gymma_vec"] = partial(env_fn, env=_GymmaVecWrapper)
