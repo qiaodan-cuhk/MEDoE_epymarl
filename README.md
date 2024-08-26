@@ -1,5 +1,28 @@
-	# Extended Python MARL framework - EPyMARL
+# LLM Subtask for GRF based on EPyMARL
 
+This implementation aims for adapt MODoE into Google Research Football Environments and EPyMARL framework.
+
+Change Log
+- Seperate fst/runner agents into learner and agents. 
+- Add doe_learner in /learner (agent.update)
+- Add doe_agent
+- Add doe_classifier in module
+
+
+Notice:
+- Epymarl has been updated to [Gymnasium](https://github.com/uoe-agents/epymarl) version in June 2024. For simplicity, we adopt old version Epymarl with Gym suits.
+- Some tricks dependencies for Epymarl: gym==0.21.0 & setuptools==65.5.0
+- GRF installation is tricky, try following codes, see [GRF](https://github.com/google-research/football) and [MARLlib_Env](https://marllib.readthedocs.io/en/latest/handbook/env.html#google-research-football)
+
+
+```
+sudo apt-get install git cmake build-essential libgl1-mesa-dev libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev libsdl2-gfx-dev libboost-all-dev libdirectfb-dev libst-dev mesa-utils xvfb x11vnc python3-pip 
+python3 -m pip install --upgrade pip setuptools psutil wheel
+```
+
+- (Tmp) For Chinese reader, here is a quickstart for Epymarl structures. [mathpretty](https://mathpretty.com/16924.html)
+
+## Original Readme from Epymarl
 EPyMARL is  an extension of [PyMARL](https://github.com/oxwhirl/pymarl), and includes
 - Additional algorithms (IA2C, IPPO, MADDPG, MAA2C and MAPPO)
 - Support for [Gym](https://github.com/openai/gym) environments (on top of the existing SMAC support)

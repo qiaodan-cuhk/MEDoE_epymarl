@@ -274,3 +274,16 @@ class _GymmaVecWrapper(MultiAgentEnv):
 
 REGISTRY["gymma"] = partial(env_fn, env=_GymmaWrapper)
 REGISTRY["gymma_vec"] = partial(env_fn, env=_GymmaVecWrapper)
+
+
+
+# Add GRF API
+try:
+    gfootball = True
+    from .gfootball import GoogleFootballEnv
+except Exception as e:
+    gfootball = False
+    print(e)
+
+if gfootball:
+    REGISTRY["gfootball"] = partial(env_fn, env=GoogleFootballEnv)
