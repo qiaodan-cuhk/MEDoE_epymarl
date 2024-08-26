@@ -2,11 +2,14 @@
 
 This implementation aims for adapt MODoE into Google Research Football Environments and EPyMARL framework.
 
+## Adopting MEDoE to Epymarl & GRF
+
 Change Log
 - Seperate fst/runner agents into learner and agents. 
-- Add doe_learner in /learner (agent.update)
-- Add doe_agent
-- Add doe_classifier in module
+- Add doe_learner in src/learners (agent.update)
+- Add doe_classifier in src/modules/doe
+- Add doe_mac in src/controllers/mac
+- Add gfootball in src/envs
 
 
 Notice:
