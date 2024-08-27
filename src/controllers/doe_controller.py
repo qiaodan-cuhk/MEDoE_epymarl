@@ -20,12 +20,33 @@ class DoEMAC:
 
         self.hidden_states = None
 
+
     def select_actions(self, ep_batch, t_ep, t_env, bs=slice(None), test_mode=False):
         # Only select actions for the selected batch elements in bs
         avail_actions = ep_batch["avail_actions"][:, t_ep]
         agent_outputs = self.forward(ep_batch, t_ep, test_mode=test_mode)
         chosen_actions = self.action_selector.select_action(agent_outputs[bs], avail_actions[bs], t_env, test_mode=test_mode)
         return chosen_actions
+    
+    # def select_actions(self, obs, explore=True, agent_id=None):
+    #     if agent_id is None:
+    #         return {agent_id: self.act(obs, explore=explore, agent_id=agent_id)
+    #                 for agent_id in self.ids}
+    #     else:
+    #         agent_outputs = self.forward(obs,
+    #                              explore=explore,
+    #                              agent_id=agent_id,
+    #                              temp=self.boost_temp(obs, agent_id))
+    #         return agent_outputs.sample().unsqueeze(1).numpy()
+
+    """ Used for adjust policy temperature """
+    def boost_temp(self, obs, agent_id=None):
+        if agent_id is None:
+            return {self.boost_temp(obs, agent_id) for agent_id in self.ids}
+        else:
+            """ 这里要修改 is_doe """
+            doe = self.is_doe(obs[agent_id], agent_id)
+            return self.base_temp * th.pow(self.boost_temp_coef, 1-doe)
 
     def forward(self, ep_batch, t, test_mode=False):
         agent_inputs = self._build_inputs(ep_batch, t)
@@ -42,6 +63,20 @@ class DoEMAC:
             agent_outs = th.nn.functional.softmax(agent_outs, dim=-1)
 
         return agent_outs.view(ep_batch.batch_size, self.n_agents, -1)
+    
+    # def forward(self, obs, explore=True, agent_id=None, temp=1.0):
+    #     with torch.no_grad():
+    #         if agent_id is None:
+    #             p = {agent_id: self.forward(obs[agent_id], explore=explore, agent_id=agent_id)
+    #                  for agent_id in self.ids}
+    #         else:
+    #             obs_torch = torch.FloatTensor(obs[agent_id])
+    #             logits = self.actor_nets[agent_id](obs_torch)
+    #             if explore:
+    #                 p = torch.distributions.categorical.Categorical(logits=logits/temp)
+    #             else:
+    #                 p = torch.distributions.categorical.Categorical(logits=logits)
+    #     return p
 
     def init_hidden(self, batch_size):
         self.hidden_states = self.agent.init_hidden().unsqueeze(0).expand(batch_size, self.n_agents, -1)  # bav

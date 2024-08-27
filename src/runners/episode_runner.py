@@ -11,7 +11,7 @@ class EpisodeRunner:
         self.args = args
         self.logger = logger
         self.batch_size = self.args.batch_size_run
-        self.batch_size = 256 # TODO
+        # self.batch_size = 256 # TODO
 
         self.env = env_REGISTRY[self.args.env](**self.args.env_args)
         self.episode_limit = self.env.episode_limit
@@ -23,6 +23,9 @@ class EpisodeRunner:
         self.test_returns = []
         self.train_stats = {}
         self.test_stats = {}
+
+        # add n_agents for run actions
+        self.n_agents = args.n_agents
 
         # Log the first run
         self.log_train_stats_t = -1000000
@@ -53,7 +56,9 @@ class EpisodeRunner:
         track_terminated = th.zeros(self.batch_size, dtype=bool)
         episode_lengths = th.zeros(self.batch_size, dtype=int)
         self.mac.init_hidden(batch_size=self.batch_size)
-        actions = th.zeros((self.batch_size, 4), dtype=int) # TODO hardcoded n_agents
+
+        # 这里改成self.n agents而不是 4
+        actions = th.zeros((self.batch_size, self.n_agents), dtype=int) # TODO hardcoded n_agents
 
         while not all(track_terminated):
 
