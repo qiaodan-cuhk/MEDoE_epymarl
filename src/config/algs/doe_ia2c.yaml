@@ -1,0 +1,52 @@
+# --- IA2C specific parameters ---
+
+action_selector: "soft_policies"
+mask_before_softmax: True
+
+runner: "parallel"
+mac: "doe_mac"
+
+buffer_size: 10
+batch_size_run: 10
+batch_size: 10
+
+# update the target network every {} training steps
+target_update_interval_or_tau: 0.01
+
+
+lr: 0.0005
+hidden_dim: 64
+
+obs_agent_id: True
+obs_last_action: False
+obs_individual_obs: False
+
+# use IA2C
+agent_output_type: "pi_logits"
+learner: "doe_ia2c_learner"
+entropy_coef: 0.01
+standardise_returns: False
+standardise_rewards: True
+use_rnn: True
+q_nstep: 5 # 1 corresponds to normal r + gammaV
+critic_type: "ac_critic"
+
+name: "doe_ia2c"
+
+t_max: 20050000
+
+
+# DoE Coef
+doe_type: "mlp"
+
+ent_coef: 1.0 # needed to override the ent_coef called elsewhere
+
+base_lr: 1.0
+base_ent: 1.0
+
+boost_lr_coef: 1.0
+boost_ent_coef: 1.0
+
+# doe_classifier_cfg
+
+

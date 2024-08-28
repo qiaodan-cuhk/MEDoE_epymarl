@@ -7,3 +7,6 @@ from .maddpg_controller import MADDPGMAC
 REGISTRY["basic_mac"] = BasicMAC
 REGISTRY["non_shared_mac"] = NonSharedMAC
 REGISTRY["maddpg_mac"] = MADDPGMAC
+
+from .doe_controller import DoEMAC
+REGISTRY["doe_mac"] = DoEMAC

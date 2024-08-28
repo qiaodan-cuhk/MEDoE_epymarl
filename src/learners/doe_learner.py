@@ -1,4 +1,5 @@
 # Modified from fst doe_ac.py
+# 这个是最开始对齐版本，迁移fst到epymarl框架，暂时不用
 import copy
 from components.episode_buffer import EpisodeBatch
 from modules.critics.coma import COMACritic
@@ -19,17 +20,19 @@ class DoEIA2C:
         self.n_actions = args.n_actions
         self.logger = logger
 
+        # Actor Network
         self.mac = mac
         self.old_mac = copy.deepcopy(mac)
         self.agent_params = list(mac.parameters())
         self.agent_optimiser = Adam(params=self.agent_params, lr=args.lr)
 
+        # Critic Network
         self.critic = critic_resigtry[args.critic_type](scheme, args)
         self.target_critic = copy.deepcopy(self.critic)
-
         self.critic_params = list(self.critic.parameters())
         self.critic_optimiser = Adam(params=self.critic_params, lr=args.lr)
 
+        # Target Critic Soft Update
         self.last_target_update_step = 0
         self.critic_training_steps = 0
         self.log_stats_t = -self.args.learner_log_interval - 1
@@ -39,17 +42,25 @@ class DoEIA2C:
             self.ret_ms = RunningMeanStd(shape=(self.n_agents, ), device=device)
         if self.args.standardise_rewards:
             self.rew_ms = RunningMeanStd(shape=(1,), device=device)
-    
+
         # Copy from doe agents
-        self.n_train_envs = n_train_envs
-        self.freeze_critic = freeze_critic/self.n_train_envs
-        self.freeze_actor = freeze_actor/self.n_train_envs
+        # 暂时不考虑并行化训练，不设置，需要的话从 runner.env 得到信息
+        # if hasattr(env, "num_vec_envs"):
+        #     n_train_envs = env.num_vec_envs
+        # elif hasattr(env, "vec_envs"):
+        #     n_train_envs = len(env.vec_envs)
+        # else:
+        #     n_train_envs = 1
+
+        # self.n_train_envs = args.n_train_envs     # n_train_env = 1
+        # self.freeze_critic = args.freeze_critic/self.n_train_envs
+        # self.freeze_actor = args.freeze_actor/self.n_train_envs
 
         # Initialise update counters
-        self.c_update = 0
-        self.p_update = self.n_steps
-        self.total_critic_updates = 0
-        self.total_actor_updates = 0
+        # self.c_update = 0
+        # self.p_update = self.n_steps
+        # self.total_critic_updates = 0
+        # self.total_actor_updates = 0
 
         # adopt from doe agents
         self.ent_coef = 1.0 # needed to override the ent_coef called elsewhere
@@ -62,6 +73,8 @@ class DoEIA2C:
         self.boost_lr_coef = self.args.get("boost_lr", 1.0)
         self.boost_ent_coef = self.args.get("boost_ent", 1.0)
 
+
+        """ ids 是一个可迭代list，装载每个agent的名字，用于指定 agent """
         # self.ids = Iterable[AgentID]
 
         # mlp/joint_mlp
@@ -70,22 +83,33 @@ class DoEIA2C:
                 cfg=self.args.get("doe_classifier_cfg"),
                 ids=self.ids
                 )
-        # self.ids = Iterable[AgentID] 
+        
         # self.doe_classifier = doe_resigtry[args.doe_type].from_config(cfg=self.args.get("doe_classifier_cfg"), ids=self.ids)
 
 
     def train(self, batch: EpisodeBatch, t_env: int, episode_num: int):
+        # t_env 是记录环境运行步骤的，输入到learner.train中，一般不用 t 。 不参与训练，只用于logger
+
+        # DoE 相对于 IA2C 的改动其实只在两个地方，第一是策略采样时多了tmp，另外是计算qty多了gain以后的entropy和sotfmax
+        # update critic 不改，uodate actor 里entropy和clamp的ratio变为doe ratio
+        # PPO 里 qty 也没变
+        # update里多了个doe判断，输入给update actor用于计算 boosted coef
+        # IA2C里 qty变了，返回的lp和entropy多了gain，feed in actor直接作为loss计算
+        # PPO 的 gain 放在actor update，IA2C 的 entropy放在 qty
+
 
         # Adopt from DoEIA2C
-        # Count Early Stopping
-        self.c_update += 1
-        critic_frozen = self.c_update <= self.freeze_critic
-        actor_frozen = self.c_update <= self.freeze_actor
-        if (critic_frozen and actor_frozen) or self.c_update % self.p_update != 0:
-            return {}
-        
-        # generate G, V, lp_chosen, entropy
 
+        # Count Early Stopping
+        # self.c_update += 1
+        # critic_frozen = self.c_update <= self.freeze_critic
+        # actor_frozen = self.c_update <= self.freeze_actor
+        # if (critic_frozen and actor_frozen) or self.c_update % self.p_update != 0:
+        #     return {}
+        
+        
+
+        # _, agent_obs, actions = batch  #需要stack对齐数据格式
         rewards = batch["reward"][:, :-1]
         actions = batch["actions"][:, :]
         terminated = batch["terminated"][:, :-1].float()
@@ -98,9 +122,11 @@ class DoEIA2C:
 
         """ Align """
         agent_obs = batch["obs"][:, :-1]
-        _, agent_obs, actions = batch  #需要stack对齐数据格式
-        # agent_outs = self.mac.forward(batch, t=t) 得到policy分布，其中 build_inputs 中取出 batch["obs"] 并处理
 
+        
+
+        # generate G, V, lp_chosen, entropy
+        # agent_outs = self.mac.forward(batch, t=t) 得到policy分布，其中 build_inputs 中取出 batch["obs"] 并处理
         # 要考虑是否使用 mac 的形式
         # agent_inputs = self._build_inputs(ep_batch, t)
         # agent_outs, self.hidden_states = self.agent(agent_inputs, self.hidden_states)
@@ -116,40 +142,42 @@ class DoEIA2C:
         # Get the relevant quantities
 
         
-
-
         mask = mask.repeat(1, 1, self.n_agents)   
         """ old Epymarl code Finished """ 
 
         # update
         self.critic_optimiser.zero_grad()
+        self.agent_optimiser.zero_grad()
         
-        critic_loss, critic_metrics = self._update_critic(Gs, Vs, frozen=critic_frozen)
-        actor_loss, actor_metrics = self._update_actor(As, lp_chosens, entropies, frozen=actor_frozen)
-        # total_loss = critic_loss + actor_loss
-        # total_loss.backward()
-        critic_loss.backward()
+        # 这里frozen都设置为False
+        critic_loss, critic_metrics = self._update_critic(Gs, Vs, frozen=False)
+        actor_loss, actor_metrics = self._update_actor(As, lp_chosens, entropies, frozen=False)
+
+        total_loss = critic_loss + actor_loss
+        total_loss.backward()
+        # critic_loss.backward()
         self.critic_optimiser.step()
 
+        # actor_loss.backward()
+        self.agent_optimiser.step()
+
         # Early Stopping for Critic and Actor
-        if not critic_frozen:
-            self.total_critic_updates += 1
-            for agent_id in self.ids:
-                """ critic_nets 换 critic module """
-                for i, p in enumerate(self.critic[agent_id].parameters()):
-                    critic_metrics[agent_id][f"critic_grad_{i}"] = p.grad.detach().norm().item()
-        if not actor_frozen:
-            self.total_actor_updates += 1
-            for agent_id in self.ids:
-                """ actor_nets 换 mac module """
-                for i, p in enumerate(self.mac[agent_id].parameters()):
-                    actor_metrics[agent_id][f"actor_grad_{i}"] = p.grad.detach().norm().item()
+        # if not critic_frozen:
+        #     self.total_critic_updates += 1
+        #     for agent_id in self.ids:
+        #         """ critic_nets 换 critic module """
+        #         for i, p in enumerate(self.critic[agent_id].parameters()):
+        #             critic_metrics[agent_id][f"critic_grad_{i}"] = p.grad.detach().norm().item()
+        # if not actor_frozen:
+        #     self.total_actor_updates += 1
+        #     for agent_id in self.ids:
+        #         """ actor_nets 换 mac module """
+        #         for i, p in enumerate(self.mac[agent_id].parameters()):
+        #             actor_metrics[agent_id][f"actor_grad_{i}"] = p.grad.detach().norm().item()
     
         
-        self.agent_optimiser.zero_grad()
-        actor_loss.backward()
-
-        self.agent_optimiser.step()
+        
+        
 
         # Target Critic Soft Update
         self.critic_training_steps += 1

@@ -6,10 +6,11 @@ This implementation aims for adapt MODoE into Google Research Football Environme
 
 Change Log
 - Seperate fst/runner agents into learner and agents. 
-- Add doe_learner in src/learners (agent.update)
-- Add doe_classifier in src/modules/doe
-- Add doe_mac in src/controllers/mac
+- Add doe_a2c_learner in src/learners (agent.update), adopt doe coefficients as actor loss
+- Add doe_classifier & LLM_doe in src/modules/doe
+- Add doe_controller in src/controllers/mac, adopt doe coefficients as sample temperature
 - Add gfootball in src/envs
+- Add doe_ia2c.yaml in config/alg
 
 
 Notice:
