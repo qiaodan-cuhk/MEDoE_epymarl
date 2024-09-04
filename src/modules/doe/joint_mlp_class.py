@@ -1,5 +1,4 @@
 
-
 class JointMLPClassifier:
 
     def __init__(self):

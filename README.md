@@ -11,6 +11,8 @@ Change Log
 - Add doe_controller in src/controllers/mac, adopt doe coefficients as sample temperature
 - Add gfootball in src/envs
 - Add doe_ia2c.yaml in config/alg
+- Zoo Agents are removed, doe_classifier experience are saved manually
+- MEDoE contains 2-stage training, first on sourse task, then on target task, the pretrained zoo agents are saved in [Edingburgh DataShare](https://datashare.ed.ac.uk/handle/10283/8778). Here we implemented this by learning from scratch & save models/experience in .py file, then load them in the medoe.py training.
 
 
 Notice:
