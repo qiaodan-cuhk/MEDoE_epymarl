@@ -242,6 +242,7 @@ class MLPClassifier:
         classifier.mlps = torch.load(absolute_path)
         return classifier
 
+    # 已经合并到了 from_config_load 中
     # @classmethod
     # def load_mlp(cls, n_agents, pathname):
     #     classifier = cls(

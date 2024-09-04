@@ -11,8 +11,28 @@ Change Log
 - Add doe_controller in src/controllers/mac, adopt doe coefficients as sample temperature
 - Add gfootball in src/envs
 - Add doe_ia2c.yaml in config/alg
-- Zoo Agents are removed, doe_classifier experience are saved manually
+- Zoo Agents are removed, doe_classifier experience are saved manually, code is in run.py/242-249, buffer will be saved in results/models/envs/map_name/buffer.pt
 - MEDoE contains 2-stage training, first on sourse task, then on target task, the pretrained zoo agents are saved in [Edingburgh DataShare](https://datashare.ed.ac.uk/handle/10283/8778). Here we implemented this by learning from scratch & save models/experience in .py file, then load them in the medoe.py training.
+- 移除 ids 姓名列表，在epymarl框架中不需要，改为用 [0 1 2 3] 表示4个agent
+
+
+ToDo
+- 添加判断是source task预训练和target task DoE的参数，在yaml.args和run.py中
+- 修改 doe_controller.py 和 doe_a2c_learner.py 中关于is_doe_classifier的代码，移除 ids 并装载buffer
+- mac 和 learner 中是否需要各自训练 doe classifier 是一个问题
+- mlp_class.py 中 line 175 的 agent_id_to_label 需要修改
+- mlp_class.py classifier的训练逻辑，即 from zoo 部分要修改
+- GRF 数据结构需要测试
+- buffer存储的数据结构需要测试，并与doe classifier对齐
+- 先在VMAS或者别的简单任务上测试epymarl的 source 和 target 训练
+
+
+代码结构
+- run.py 是整个训练流程
+- mlp_class.py 是分类器，加载buffer数据和角色配置，训练一个 obs-> 是否属于自己角色的分类器
+- doe_controller.py 是控制器 actor，初始化is_doe时加载分类器，并训练分类器，使用分类器结果来控制动作的采样温度
+- doe_a2c_learner.py 是学习器，初始化is_doe时加载分类器，在训练中使用分类器结果作为 lr 和 entropy 的增益系数，调节critic loss
+- 在mlp_class中，如果 train_dataloader 不为空，则使用 buffer 数据训练分类器，否则不训练 mlps
 
 
 Notice:

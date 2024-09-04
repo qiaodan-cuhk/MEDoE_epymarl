@@ -239,6 +239,16 @@ def run_sequential(args, logger):
             logger.print_recent_stats()
             last_log_T = runner.t_env
 
+    """ Save buffers for DoE Classifier """
+    # 添加两个参数，save_doe_buffer 代表是否存储buffer用于doe训练；
+    # pretrain_tasks True是source task训练，不需要doe，False是target task训练，需要加载doe；
+    if args.save_doe_buffer and args.pretrain_tasks:
+        buffer_save_path = os.path.join(args.local_results_path, "buffers", args.env, args.env_args.map_name)
+        os.makedirs(os.path.dirname(buffer_save_path), exist_ok=True)
+        th.save(buffer.data, "{}/buffer.pt".format(buffer_save_path))
+        logger.console_logger.info(f"Save buffer to {buffer_save_path} for DoE Classifier")
+
+
     runner.close_env()
     logger.console_logger.info("Finished Training")
 

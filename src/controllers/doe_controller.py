@@ -22,6 +22,7 @@ class DoEMAC(BasicMAC):
         self.boost_temp_coef = self.args.get("boost_temp", 1.0)
 
         """ self.ids 要修改 """
+        """ 这里有个问题是，mac的doe训练和runner里是否重复，还是说单独训练的 """
         self.doe_classifier = doe_classifier_config_loader(
                 cfg=self.args.get("doe_classifier_cfg"),
                 ids=self.ids
