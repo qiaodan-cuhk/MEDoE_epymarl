@@ -106,8 +106,9 @@ class DoE_A2C_Learner:
         entropy = -th.sum(pi * th.log(pi + 1e-10), dim=-1)
 
         """ Boost pi_taken and entropy with DoE gains """
-        b_log_pi_taken = log_pi_taken * self.boost_lr(agent_obs, agent_id=agent_id)
-        b_entropy = entropy * self.boost_ent(agent_obs, agent_id=agent_id)
+        # 原始代码中agent_id为None，等于为所有agent都分别计算他的boost，存成一个list，用于分别更新每个agent的loss
+        b_log_pi_taken = log_pi_taken * self.boost_lr(agent_obs, agent_id=None)
+        b_entropy = entropy * self.boost_ent(agent_obs, agent_id=None)
 
         # PG loss for actor
         pg_loss = -((advantages * b_log_pi_taken + self.args.entropy_coef * b_entropy) * mask).sum() / mask.sum()
@@ -235,14 +236,14 @@ class DoE_A2C_Learner:
 
     def boost_lr(self, obs, agent_id=None):
         if agent_id is None:
-            return {self.boost_lr(obs, agent_id) for agent_id in self.ids}
+            return {self.boost_lr(obs, agent_id) for agent_id in range(self.n_agents)}
         else:
             boost = self.boost_lr_coef
             return self.base_lr*(boost + (1-boost)*self.is_doe(obs[agent_id], agent_id))
 
     def boost_ent(self, obs, agent_id=None):
         if agent_id is None:
-            return {self.boost_ent(obs, agent_id) for agent_id in self.ids}
+            return {self.boost_ent(obs, agent_id) for agent_id in range(self.n_agents)}
         else:
             boost = self.boost_ent_coef
             return self.base_ent*(boost + (1-boost)*self.is_doe(obs[agent_id], agent_id))

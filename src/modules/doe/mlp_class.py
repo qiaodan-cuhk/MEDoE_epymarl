@@ -4,7 +4,7 @@ from collections import OrderedDict
 import numpy as np
 import torch
 from torch.optim import Adam
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader
 from fst.utils.network import fc_network
 
 from utils import SimpleListDataset
