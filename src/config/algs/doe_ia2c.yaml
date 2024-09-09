@@ -37,6 +37,7 @@ t_max: 20050000
 
 
 # DoE Coef
+use_doe: true
 doe_type: "mlp"
 
 ent_coef: 1.0 # needed to override the ent_coef called elsewhere
@@ -49,7 +50,7 @@ boost_ent_coef: 1.0
 
 # doe_classifier_cfg
 doe_classifier_cfg:
-  type: MLP
+  doe_type: mlp
   load_mode: train
   save_classifier: true
   save_pathname: mlp_classifier.pt

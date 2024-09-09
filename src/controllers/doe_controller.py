@@ -7,8 +7,6 @@ from components.action_selectors import REGISTRY as action_REGISTRY
 import torch as th
 
 from .basic_controller import BasicMAC
-from modules.doe import doe_classifier_config_loader
-
 
 # This multi-agent controller shares parameters between agents
 
@@ -21,12 +19,12 @@ class DoEMAC(BasicMAC):
         self.base_temp = self.args.get("base_temp", 1.0)
         self.boost_temp_coef = self.args.get("boost_temp", 1.0)
 
-        """ self.ids 要修改 """
-        """ 这里有个问题是，mac的doe训练和runner里是否重复，还是说单独训练的 """
-        self.doe_classifier = doe_classifier_config_loader(
-                cfg=self.args.get("doe_classifier_cfg"),
-                ids=self.ids
-                )
+        # """ self.ids 要修改 """
+        # """ 这里有个问题是，mac的doe训练和runner里是否重复，还是说单独训练的 """
+        # self.doe_classifier = doe_classifier_config_loader(
+        #         cfg=self.args.get("doe_classifier_cfg"),
+        #         ids=self.ids
+        #         )
         
 
     def is_doe(self, obs, agent_id=None):
@@ -121,3 +119,7 @@ class DoEMAC(BasicMAC):
         else:
             doe = self.is_doe(obs[agent_id], agent_id)
             return self.base_temp * th.pow(self.boost_temp_coef, 1-doe)
+    
+    # Add DoE Classifier
+    def set_doe_classifier(self, classifier):
+        self.doe_classifier = classifier

@@ -6,19 +6,8 @@ import torch
 from torch.optim import Adam
 from torch.utils.data import Dataset, DataLoader
 from fst.utils.network import fc_network
-from omegaconf import OmegaConf
-import hydra
 
 from utils import SimpleListDataset
-
-
-# ids 是一个Iterable list，用于适配zoo管理的字符串命名agent，如 Alice Bob等，在epymarl框架中不需要
-# name_id_mapping = OrderedDict(((cfg.zoo_mapping[agent_id], agent_id) for agent_id in ids))
-# zoo_mapping:
-#   alice: ${agents.medoe.zoo_alice}
-#   bob: ${agents.medoe.zoo_bob}
-#   carol: ${agents.medoe.zoo_carol}
-#   dave: ${agents.medoe.zoo_dave}
 
 
 class MLPClassifier:
@@ -38,11 +27,12 @@ class MLPClassifier:
         self.learning_rates = [learning_rate] * n_agents
         self.network_arch = network_arch
         self.obs_mask = obs_mask
-
+        self.batch_size = batch_size
+        self.role_list = role_list
 
         if train_dataloader is not None:
 
-            self.trained_agent_id = 0 # 要改成for循环list
+            # self.trained_agent_id = 0 # 用于单独训练某一个agent doe
 
             self.train_data_loader = train_dataloader
             self.test_data_loader = test_dataloader
@@ -59,7 +49,7 @@ class MLPClassifier:
             self,
             train_dataloader,
             test_dataloader,
-            role_list, # 这是个字典，key是每个agent的名字，返回的是 0/1 这样的标签，代表进攻和防守
+            role_list,
             test_period=5,
             obs_mask=None):
         
@@ -118,7 +108,7 @@ class MLPClassifier:
         else:
             return self.mlps[agent_id](torch.Tensor(obs)).sigmoid()
 
-    # 返回的是mlp输出值，不需要经过sigmoid函数，变成0-1的概率
+    # 返回的是mlp输出值，不需要经过sigmoid函数
     def is_doe_logits(self, obs, agent_id=None):
         if agent_id is None:
             return [self.mlps[i](torch.Tensor(obs[i])) for i in range(self.n_agents)]
@@ -131,48 +121,56 @@ class MLPClassifier:
     def save(self, pathname):
         torch.save(self.mlps, pathname)
 
+    
     @classmethod
-    def from_zoo(cls,
-                 name_id_mapping,
-                 role_list,
-                 zoo_path,
-                 cfg,
-                 ):
-        
-        agent_ids = list(name_id_mapping.values())
-        # [0 1 2 3]
+    def from_config(cls, n_agents, cfg):
+        if cfg.load_mode == "train":
+            classifier = cls.from_config_train(n_agents, cfg)
+            if cfg.get("save_classifier", False):
+                classifier.save(cfg.save_pathname)
+            return classifier
+        elif cfg.load_mode == "load":
+            return cls.from_config_load(n_agents, cfg)
+
+    @classmethod
+    def from_config_train(cls, n_agents, cfg):
+        mlp_cfg = cfg.mlp
+        role_list = [0] * n_agents
+        role_ids = cfg.role_ids
+        # (0, ('defence', ['alice', 'bob'])) 和 (1, ('attack', ['carol', 'dave']))
+        # 这里role_ids是字典，key是角色，value是agent_id
+
+        # 设置角色列表
+        for label, (_, role_agents_ids) in enumerate(role_ids.items()):
+            for agent_id in role_agents_ids:
+                role_list[agent_id] = label
+        # role_list = [0, 0, 1, 1] 代表分别是 防御防御进攻进攻
 
         # 这段是为了load buffer,需要在run.py中添加一个save buffer的接口
-        exp_buffers = {}
-        for actor_name, agent_id in name_id_mapping.items():
-            # load config
-            actor_cfg_path = osp.normpath(
-                osp.join(zoo_path, "configs", "actors", f"{actor_name}.yaml")
-                )
-            actor_cfg = OmegaConf.load(actor_cfg_path)
-            # load experience
-            exp_path = osp.normpath(
-                osp.join(zoo_path, "configs", "experience", f"{actor_cfg.experience}.yaml")
-                )
-            exp_cfg = OmegaConf.load(exp_path)
-            exp_buffers.update({agent_id: torch.load(exp_cfg.path_to_experience)})
+        # 考虑转成字典，或者直接用torch load
+        buffer_save_path = os.path.join(mlp_cfg.local_results_path, "buffers", mlp_cfg.env, mlp_cfg.env_args.map_name, "buffer.pt")
+        if not os.path.exists(buffer_save_path):
+            raise FileNotFoundError(f"Buffer file not found at {buffer_save_path}")
+        
+        exp_buffers = torch.load(buffer_save_path)
 
         # Classifier training params
-        batch_size = cfg.get("batch_size", 256)
-        test_fraction = cfg.get("test_fraction", 0.1)
-        hidden_sizes = cfg.get("hidden_sizes", [128])
-        learning_rate = cfg.get("lr", 1e-2)
-        test_period = cfg.get("test_period", 5)
-        obs_mask = cfg.get("obs_mask", None)
+        batch_size = mlp_cfg.get("batch_size", 256)
+        test_fraction = mlp_cfg.get("test_fraction", 0.1)
+        hidden_sizes = mlp_cfg.get("hidden_sizes", [128])
+        learning_rate = mlp_cfg.get("lr", 1e-2)
+        test_period = mlp_cfg.get("test_period", 5)
+        obs_mask = mlp_cfg.get("obs_mask", None)
 
         # Load & process the data
         states = []
-        labels = []
+        labels = [] 
         with torch.no_grad():
-            for agent_id in agent_ids:
+            for agent_id in range(n_agents):
                 #state = torch.concat(exp_buffers[agent_id])
                 state = exp_buffers[agent_id]
-                label = torch.full((len(exp_buffers[agent_id]),), agent_id_to_label[agent_id])
+                label = torch.full((len(exp_buffers[agent_id]),), role_list[agent_id])
+                # 长度为buffer长度的tensor，每个元素都被填充为agent_id对应的角色label[attack, defence]
                 states.append(state)
                 labels.append(label)
             states = torch.concat(states)
@@ -186,11 +184,13 @@ class MLPClassifier:
             test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True)
 
         network_arch = [states[0].size().numel(), *hidden_sizes, 1]
+
         return cls(
-            n_agents=len(agent_ids),
+            n_agents=n_agents,
             train_dataloader=train_dataloader, 
             test_dataloader=test_dataloader,
             network_arch=network_arch,
+            role_list=role_list,
             learning_rate=learning_rate,
             batch_size=batch_size,
             test_period=test_period,
@@ -198,61 +198,24 @@ class MLPClassifier:
             )
 
     @classmethod
-    def from_config(cls, n_agents, cfg):
-        if cfg.load_mode == "train":
-            classifier = cls.from_config_train(n_agents, cfg)
-            if cfg.get("save_classifier", False):
-                classifier.save(cfg.save_pathname)
-            return classifier
-        elif cfg.load_mode == "load":
-            return cls.from_config_load(n_agents, cfg)
-
-    @classmethod
-    def from_config_train(cls, n_agents, cfg):
-
-        name_id_mapping = OrderedDict(((cfg.zoo_mapping[agent_id], agent_id) for agent_id in range(n_agents)))
-        # 这个没用，待删除
-
-        zoo_path = os.path.abspath(cfg.zoo_path)
-        # zoo_path = hydra.utils.to_absolute_path(cfg.get("zoo_path", "zoo"))
-        # 这个没用，待删除  
-        
-        role_ids = cfg.role_ids
-        # (0, 'defence', ['alice', 'bob'])) 和 (1, ('attack', ['carol', 'dave']))
-
-        mlp_cfg = cfg.mlp
-        role_list = [0] * n_agents
-        for label, (source, source_agent_ids) in enumerate(role_ids.items()):
-            for agent_id in source_agent_ids:
-                role_list[agent_id] = label
-
-        return cls.from_zoo(name_id_mapping, role_list, zoo_path, mlp_cfg)
-
-    @classmethod
     def from_config_load(cls, n_agents, cfg):
         classifier = cls(
             n_agents,
             train_dataloader=None, 
             test_dataloader=None,
-            network_arch=None,
-            role_list=None  # 假设这个参数是必需的，如果不是，可以移除
+            network_arch=None, 
+            role_list=None
         )
-        # 使用os.path来处理路径
         absolute_path = os.path.abspath(cfg.path_to_classifier)
-        classifier.mlps = torch.load(absolute_path)
+        loaded_mlps = torch.load(absolute_path)
+        
+        # sanity check
+        if not isinstance(loaded_mlps, list) or not all(isinstance(mlp, torch.nn.Module) for mlp in loaded_mlps):
+            raise TypeError("Loaded object is not a list of torch.nn.Modules")
+        
+        classifier.mlps = loaded_mlps
         return classifier
 
-    # 已经合并到了 from_config_load 中
-    # @classmethod
-    # def load_mlp(cls, n_agents, pathname):
-    #     classifier = cls(
-    #              n_agents,
-    #              train_dataloader=None, 
-    #              test_dataloader=None,
-    #              network_arch=None,
-    #              )
-    #     classifier.mlps = torch.load(hydra.utils.to_absolute_path(pathname))
-    #     return classifier
 
 
 

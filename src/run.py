@@ -15,6 +15,15 @@ from controllers import REGISTRY as mac_REGISTRY
 from components.episode_buffer import ReplayBuffer
 from components.transforms import OneHot
 
+from modules.doe import doe_classifier_config_loader
+
+
+# Eureka 主程序调用是 for acadamy in [task1, task2, task3] 调用run.py，
+# 比如 map_name = config.env_args.map_name 会取到 task1，task2，task3 的map_name
+# 相应的 Eureka 主程序会额外定义两个参数: args.map = [defence, attack] 和 args.if_doe = [True, False]
+# 其中 args.map 代表当前运行的任务地图，args.if_doe 代表是否需要加载doe buffer
+# 对应加载的 agents mac/learner 会根据 args.if_doe 来决定是否有一个 doe 参数
+
 
 def run(_run, _config, _log):
 
@@ -125,6 +134,22 @@ def run_sequential(args, logger):
 
     # Learner
     learner = le_REGISTRY[args.learner](mac, buffer.scheme, logger, args)
+
+    # 检查是否需要 DoE，并 train/load classifier
+    if args.get("use_doe", False):  # 假设我们在配置中添加了一个 use_doe 标志
+        doe_classifier = doe_classifier_config_loader(
+            n_agents=args.n_agents,
+            cfg=args.get("doe_classifier_cfg")
+        )
+        
+        # 为 MAC 设置 DoE classifier
+        if hasattr(mac, 'set_doe_classifier'):
+            mac.set_doe_classifier(doe_classifier)
+        
+        # 为 Learner 设置 DoE classifier
+        if hasattr(learner, 'set_doe_classifier'):
+            learner.set_doe_classifier(doe_classifier)
+        print("DoE_classifier is set to mac and learner")
 
     if args.use_cuda:
         learner.cuda()
@@ -246,7 +271,7 @@ def run_sequential(args, logger):
         buffer_save_path = os.path.join(args.local_results_path, "buffers", args.env, args.env_args.map_name)
         os.makedirs(os.path.dirname(buffer_save_path), exist_ok=True)
         th.save(buffer.data, "{}/buffer.pt".format(buffer_save_path))
-        logger.console_logger.info(f"Save buffer to {buffer_save_path} for DoE Classifier")
+        logger.console_logger.info(f"Save buffer to {buffer_save_path} nfor DoE Classifier")
 
 
     runner.close_env()

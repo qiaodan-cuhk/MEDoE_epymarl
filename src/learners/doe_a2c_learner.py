@@ -12,7 +12,6 @@ from modules.critics import REGISTRY as critic_resigtry
 from components.standarize_stream import RunningMeanStd
 
 from modules.doe import REGISTRY as doe_resigtry
-from modules.doe import doe_classifier_config_loader
 
 
 class DoE_A2C_Learner:
@@ -53,11 +52,11 @@ class DoE_A2C_Learner:
         self.boost_lr_coef = self.args.get("boost_lr", 1.0)
         self.boost_ent_coef = self.args.get("boost_ent", 1.0)
 
-        """ self.ids 要修改 """
-        self.doe_classifier = doe_classifier_config_loader(
-                cfg=self.args.get("doe_classifier_cfg"),
-                ids=self.ids
-                )
+        # """ self.ids 要修改 """
+        # self.doe_classifier = doe_classifier_config_loader(
+        #         cfg=self.args.get("doe_classifier_cfg"),
+        #         ids=self.ids
+        #         )
 
     def train(self, batch: EpisodeBatch, t_env: int, episode_num: int):
         # Get the relevant quantities
@@ -247,3 +246,7 @@ class DoE_A2C_Learner:
         else:
             boost = self.boost_ent_coef
             return self.base_ent*(boost + (1-boost)*self.is_doe(obs[agent_id], agent_id))
+        
+    # Add DoE Classifier
+    def set_doe_classifier(self, classifier):
+        self.doe_classifier = classifier
